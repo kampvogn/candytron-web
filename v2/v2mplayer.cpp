@@ -26,6 +26,12 @@ namespace
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 	{
 		// performs 64bit (nexttime-time)*usecs/td2 and a 32.32bit addition to smpldelta:smplrem
+#ifdef __EMSCRIPTEN__ // kampvogn.dk: the asm below in C
+		unsigned long long p = (unsigned long long)(sU32)(nexttime-time) * usecs;
+		unsigned long long sum = (unsigned long long)*smplrem + (sU32)(p % td2);
+		*smplrem = (sU32)sum;
+		*smpldelta = (sU32)(p / td2) + (sU32)(sum >> 32);
+#else
 		__asm {
 			mov eax, [nexttime]
 			sub eax, [time]
@@ -39,6 +45,7 @@ namespace
 			mov ecx, [smpldelta]
 			mov [ecx], eax
 		}
+#endif
 	}
 }
 
@@ -311,6 +318,9 @@ void V2MPlayer::Play(sU32 a_time)
 
 	m_base.valid=sFALSE;
 	sU32 destsmpl, cursmpl=0;
+#ifdef __EMSCRIPTEN__ // kampvogn.dk
+	destsmpl = (sU32)((long long)(sS32)a_time * (sS32)m_samplerate / (sS32)m_tpc);
+#else
 	__asm
 	{
 		mov  ecx, this
@@ -321,6 +331,7 @@ void V2MPlayer::Play(sU32 a_time)
 		idiv ebx
 		mov  [destsmpl], eax
 	}
+#endif
 
 	m_state.state=PlayerState::PLAYING;
 	m_state.smpldelta=0;
@@ -353,6 +364,9 @@ void V2MPlayer::Stop(sU32 a_fadetime)
 	if (a_fadetime)
 	{
 		sU32 ftsmpls;
+#ifdef __EMSCRIPTEN__ // kampvogn.dk
+		ftsmpls = (sU32)((long long)(sS32)a_fadetime * (sS32)m_samplerate / (sS32)m_tpc);
+#else
 		__asm
 		{
 			mov  ecx, this
@@ -363,6 +377,7 @@ void V2MPlayer::Stop(sU32 a_fadetime)
 			idiv ebx
 			mov  [ftsmpls], eax
 		}
+#endif
 		m_fadedelta=m_fadeval/ftsmpls;
 	}
 	else
@@ -406,6 +421,9 @@ void V2MPlayer::Render(sF32 *a_buffer, sU32 a_len, sBool a_add)
 	{
     if (!a_add)
     {
+#ifdef __EMSCRIPTEN__
+		  memset(a_buffer, 0, a_len*2*sizeof(sF32)); // kampvogn.dk
+#else
 		  __asm {
 			  mov edi, [a_buffer]
 			  mov ecx, [a_len]
@@ -413,6 +431,7 @@ void V2MPlayer::Render(sF32 *a_buffer, sU32 a_len, sBool a_add)
 			  xor eax, eax
 			  rep stosd
 		  }
+#endif
     }
 	}
 	else

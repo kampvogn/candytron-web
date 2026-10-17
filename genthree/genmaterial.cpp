@@ -480,7 +480,7 @@ GenScene * __stdcall Scene_Mesh(GenMesh *mesh,sF323 s,sF323 r,sF323 t)
 
   SCRIPTVERIFY(mesh);
   scene = new GenScene;
-  sCopyMem(scene->SRT,&s.x,9*4);
+  sCopyMem(scene->SRT,&s.x,3*4); sCopyMem(scene->SRT+3,&r.x,3*4); sCopyMem(scene->SRT+6,&t.x,3*4); // kampvogn.dk: was 9 floats from &s.x (x86 stack order)
   scene->Mesh = mesh;
   mesh->Prepare();
 
@@ -514,7 +514,7 @@ GenScene * __stdcall Scene_Trans(GenScene *sa,sF323 s,sF323 r,sF323 t)
 
   SCRIPTVERIFY(sa);
   scene = new GenScene;
-  sCopyMem(scene->SRT,&s.x,9*4);
+  sCopyMem(scene->SRT,&s.x,3*4); sCopyMem(scene->SRT+3,&r.x,3*4); sCopyMem(scene->SRT+6,&t.x,3*4); // kampvogn.dk: was 9 floats from &s.x (x86 stack order)
   *scene->Childs.Add() = sa;
 
   return scene;
@@ -526,7 +526,7 @@ GenScene * __stdcall Scene_Multiply(GenScene *sa,sF323 s,sF323 r,sF323 t,sInt co
 
   SCRIPTVERIFY(sa);
   scene = new GenScene;
-  sCopyMem(scene->SRT,&s.x,9*4);
+  sCopyMem(scene->SRT,&s.x,3*4); sCopyMem(scene->SRT+3,&r.x,3*4); sCopyMem(scene->SRT+6,&t.x,3*4); // kampvogn.dk: was 9 floats from &s.x (x86 stack order)
   *scene->Childs.Add() = sa;
   scene->Multiply = count>>16;
 
@@ -556,7 +556,7 @@ GenScene * __stdcall Scene_Light(sF323 s,sF323 r,sF323 t,sInt mode,sInt mask,sIn
 
   scene = new GenScene;
   light = new GenLight;
-  sCopyMem(scene->SRT,&s.x,9*4);
+  sCopyMem(scene->SRT,&s.x,3*4); sCopyMem(scene->SRT+3,&r.x,3*4); sCopyMem(scene->SRT+6,&t.x,3*4); // kampvogn.dk: was 9 floats from &s.x (x86 stack order)
   scene->Multiply = 1;
   scene->Light = light;
 

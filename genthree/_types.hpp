@@ -228,7 +228,11 @@ sF32 sRangeF32(sF32 a,sF32 b,sF32 c);
 /****************************************************************************/
 
 
+#ifdef __EMSCRIPTEN__
+#include <stddef.h> /* kampvogn.dk: libc's size_t */
+#else
 typedef unsigned int size_t;
+#endif
 extern "C"
 {
   int __cdecl abs(int);
@@ -307,6 +311,16 @@ sF64 sFExp(sF64 f);
 
 #pragma warning (disable : 4035) 
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: C versions of the asm below. The intro sets the x87 control
+   word to 0x143f (24-bit precision, round DOWN), so fistp and frndint floor. */
+#include <math.h>
+__forceinline sInt sFtol (const float f) { return (sInt)floorf(f); }
+__forceinline sF32 sFRound (const float f) { return floorf(f); }
+__forceinline sInt sMulDiv(sInt a,sInt b,sInt c) { return (sInt)(((long long)a*b)/c); }
+__forceinline sInt sMulShift(sInt a,sInt b) { return (sInt)(((long long)a*b)>>16); }
+__forceinline sInt sDivShift(sInt a,sInt b) { return (sInt)((((long long)a)<<16)/b); }
+#else
 __forceinline sInt sFtol (const float f)
 {
   __asm 
@@ -361,6 +375,7 @@ __forceinline sInt sDivShift(sInt var_a,sInt var_b)
     idiv ebx
   }
 }
+#endif
 
 #pragma warning (default : 4035) 
 

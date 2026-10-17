@@ -48,6 +48,84 @@ sU32 GetColor32(const sInt4 &colx)
   return col;
 }
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: the MMX asm of Fade64() and Bitmap_Inner() in C. A sU64 holds
+   four 16-bit lanes (lane 0 = bits 0..15); each helper is one MMX instruction. */
+typedef unsigned long long mmx_t;
+static inline sInt mmx_lane(mmx_t v,int i) { return (sInt)((v>>(i*16))&0xffff); }
+static inline sInt mmx_s16(sInt x) { return (short)(x&0xffff); }
+static inline mmx_t mmx_make(const sInt *w) { mmx_t r=0; for(int i=0;i<4;i++) r|=((mmx_t)(w[i]&0xffff))<<(i*16); return r; }
+static inline sInt mmx_sat_s16(sInt x) { return x<-32768 ? -32768 : x>32767 ? 32767 : x; }
+static mmx_t mmx_paddw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_lane(a,i)+mmx_lane(b,i); return mmx_make(w); }
+static mmx_t mmx_psubw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_lane(a,i)-mmx_lane(b,i); return mmx_make(w); }
+static mmx_t mmx_paddsw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_sat_s16(mmx_s16(mmx_lane(a,i))+mmx_s16(mmx_lane(b,i))); return mmx_make(w); }
+static mmx_t mmx_psubusw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) { sInt d=mmx_lane(a,i)-mmx_lane(b,i); w[i]=d<0?0:d; } return mmx_make(w); }
+static mmx_t mmx_pmulhw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) w[i]=(mmx_s16(mmx_lane(a,i))*mmx_s16(mmx_lane(b,i)))>>16; return mmx_make(w); }
+static mmx_t mmx_pmullw(mmx_t a,mmx_t b) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_s16(mmx_lane(a,i))*mmx_s16(mmx_lane(b,i)); return mmx_make(w); }
+static mmx_t mmx_psrlw(mmx_t a,int n) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_lane(a,i)>>n; return mmx_make(w); }
+static mmx_t mmx_psllw(mmx_t a,int n) { sInt w[4]; for(int i=0;i<4;i++) w[i]=mmx_lane(a,i)<<n; return mmx_make(w); }
+static mmx_t mmx_punpcklwd(mmx_t a,mmx_t b) { sInt w[4]={mmx_lane(a,0),mmx_lane(b,0),mmx_lane(a,1),mmx_lane(b,1)}; return mmx_make(w); }
+static mmx_t mmx_punpckhwd(mmx_t a,mmx_t b) { sInt w[4]={mmx_lane(a,2),mmx_lane(b,2),mmx_lane(a,3),mmx_lane(b,3)}; return mmx_make(w); }
+static mmx_t mmx_psrld(mmx_t a,int n) { return (((a&0xffffffffull)>>n)&0xffffffffull) | ((((a>>32)&0xffffffffull)>>n)<<32); }
+static mmx_t mmx_packssdw(mmx_t a,mmx_t b)
+{
+  sInt w[4]={ mmx_sat_s16((sInt)(a&0xffffffff)), mmx_sat_s16((sInt)(a>>32)), mmx_sat_s16((sInt)(b&0xffffffff)), mmx_sat_s16((sInt)(b>>32)) };
+  return mmx_make(w);
+}
+/* movd eax + packssdw + 2x punpcklwd: eax saturated to 16 bits in every lane */
+static mmx_t mmx_broadcast(sInt eax) { sInt v=mmx_sat_s16(eax); sInt w[4]={v,v,v,v}; return mmx_make(w); }
+
+void Fade64(sU64 &r,sU64 &c0,sU64 &c1,sInt fade)
+{
+  sInt f = fade>>1;
+  mmx_t m3 = mmx_pmulhw(c1, mmx_broadcast(f));
+  mmx_t m2 = mmx_pmulhw(c0, mmx_broadcast(0x8000-f));
+  r = mmx_psllw(mmx_paddw(m2,m3),1);
+}
+
+void __stdcall Bitmap_Inner(sU64 *d,sU64 *s,sInt count,sInt mode)
+{
+  const mmx_t mm3 = 0x7fff7fff7fff7fffull;
+  const mmx_t mm4 = 0x0000ffffffffffffull;
+  const mmx_t mm5 = ~mm4;
+  const mmx_t mm6 = 0x7fff000000000000ull;
+  const mmx_t mm2 = *s;   /* the colour for the colour modes */
+  mmx_t m0,m1,m5,m6,m7;
+  for(sInt n=0;n<count;n++,d++,s++)
+  {
+    switch(mode)
+    {
+    case 0: m0 = mmx_paddsw(*d,*s); break;                                   // add
+    case 1: m0 = mmx_psubusw(*d,*s); break;                                  // sub
+    case 2: m0 = mmx_psllw(mmx_pmulhw(*d,*s),1); break;                      // mul
+    case 3: m0 = mmx_psrlw(mmx_paddw(mmx_psubw(*d,*s),mm3),1); break;        // diff
+    case 4:                                                                   // alpha
+      m0 = *s; m1 = *d; m6 = m0>>16; m7 = m0>>32;
+      m0 = mmx_psrlw(mmx_paddw(m0,m6),1); m7 = mmx_psrlw(mmx_paddw(m7,m6),1);
+      m0 = mmx_paddw(m0,m7);
+      m0 = ((m0<<47)&mm5) | (m1&mm4);
+      break;
+    case 5: m0 = mmx_psllw(mmx_pmulhw(*d,mm2),1); break;                     // mul color
+    case 6: m0 = mmx_paddsw(*d,mm2); break;                                  // add color
+    case 7: m0 = mmx_psubusw(*d,mm2); break;                                 // sub color
+    case 8:                                                                   // gray color
+      m0 = *d; m5 = m0>>16; m7 = m0>>32;
+      m0 = mmx_psrlw(mmx_paddw(m0,m5),1); m7 = mmx_psrlw(mmx_paddw(m7,m5),1);
+      m0 = mmx_psrlw(mmx_paddw(m0,m7),1);
+      m0 = mmx_punpcklwd(m0,m0); m0 = mmx_punpcklwd(m0,m0);
+      m0 |= mm6;
+      break;
+    case 9: m0 = *d ^ mm3; break;                                            // invert color
+    default:                                                                  // scale color
+      m0 = mmx_pmullw(*d,mm2); m1 = mmx_pmulhw(*d,mm2); m6 = m0;
+      m0 = mmx_punpcklwd(m0,m1); m6 = mmx_punpckhwd(m6,m1);
+      m0 = mmx_packssdw(mmx_psrld(m0,11),mmx_psrld(m6,11));
+      break;
+    }
+    *d = m0;
+  }
+}
+#else
 void Fade64(sU64 &r,sU64 &c0,sU64 &c1,sInt fade)
 {
   _asm
@@ -81,6 +159,7 @@ void Fade64(sU64 &r,sU64 &c0,sU64 &c1,sInt fade)
     emms
   }
 }
+#endif
 
 sInt border(sInt v,sInt m,sInt b)
 {
@@ -289,6 +368,7 @@ GenBitmap * __stdcall Bitmap_Flat(sInt4 color)
 
 /****************************************************************************/
 
+#ifndef __EMSCRIPTEN__
 void __stdcall Bitmap_Inner(sU64 *d,sU64 *s,sInt count,sInt mode)
 {
   __asm
@@ -461,6 +541,7 @@ ende:
    	__asm emms;
   }
 }
+#endif
 
 GenBitmap * __stdcall Bitmap_Merge(GenBitmap *bm,GenBitmap *bb,sInt mode)
 {

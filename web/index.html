@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fr-030: candytron</title>
+<meta name="description" content="Farbrausch's 64k intro candytron (2003), built from the original source to WebAssembly and WebGL 2.">
+<style>
+	html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px/1.5 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; overflow: hidden; }
+	#canvas { position: absolute; display: block; background: #000; }
+	#start { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em; padding: 16px; text-align: center; }
+	#start[hidden] { display: none; }
+	h1 { margin: 0; font-weight: 400; letter-spacing: .12em; color: #e9c; font-size: 22px; }
+	.info { margin: 0; max-width: 34em; color: #888; font-size: 13px; }
+	.info a, #links a { color: #bbb; }
+	#start button { background: none; color: #ddd; border: 1px solid #555; font: inherit; padding: .6em 1.6em; cursor: pointer; }
+	#start button:hover { border-color: #e9c; color: #fff; }
+	#status { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; pointer-events: none; }
+	#links { position: absolute; right: 12px; top: 8px; font-size: 12px; display: flex; gap: 1em; }
+	body.playing #links { opacity: 0; transition: opacity 1s; }
+	body.playing #links:hover { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="800" height="600"></canvas>
+<div id="start">
+	<h1>fr-030: candytron</h1>
+	<p class="info">Farbrausch · 64k intro · 2nd at Breakpoint 2003 (final version)<br>
+		chaos, ryg – code · gizmo – graphics · kb – music</p>
+	<button id="go" type="button">▶ Start (with sound)</button>
+	<p class="info">Built from Farbrausch's
+		<a href="https://github.com/farbrausch/fr_public">published source</a> to WebAssembly and WebGL 2:
+		everything is generated in your browser before it starts, and the music is synthesized as it plays.
+		<a href="https://github.com/kampvogn/candytron-web/tree/web/web">How it was ported</a>.</p>
+</div>
+<div id="links"><a href="../demos/">Demos</a><a href="#" id="fs">Fullscreen</a></div>
+<div id="status"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+function fit() {
+	const c = $('canvas'), ar = 4 / 3;
+	const w = Math.min(innerWidth, innerHeight * ar), h = w / ar;
+	Object.assign(c.style, { width: w + 'px', height: h + 'px', left: (innerWidth - w) / 2 + 'px', top: (innerHeight - h) / 2 + 'px' });
+}
+addEventListener('resize', fit); fit();
+$('fs').addEventListener('click', (e) => {
+	e.preventDefault();
+	if (document.fullscreenElement) document.exitFullscreen();
+	else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+});
+var Module = {
+	canvas: $('canvas'),
+	print: (t) => console.log(t),
+	printErr: (t) => console.warn(t),
+	onProgress: (f) => { $('status').textContent = f >= 1 ? '' : 'generating ' + Math.round(f * 100) + '%'; },
+	onDemoEnd: (why) => {
+		$('status').textContent = why === 'abort' ? 'stopped (error)' : 'the end · reload to watch again';
+		document.body.classList.remove('playing');
+		window.__ended = why || 'end';
+	},
+	onRuntimeInitialized: () => { window.__ready = true; },
+};
+$('go').addEventListener('click', () => {
+	$('start').hidden = true;
+	document.body.classList.add('playing');
+	window.__started = true;
+	Module.callMain([]);
+});
+</script>
+<script src="candytron.js"></script>
+</body>
+</html>

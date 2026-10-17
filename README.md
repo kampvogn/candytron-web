@@ -1,3 +1,7 @@
+> **This fork (branch `web`)** builds Farbrausch's 64k intro *fr-030: candytron*
+> to WebAssembly and WebGL 2 – see [`web/`](web/README.md), or watch it at
+> https://kampvogn.dk/candytron/.
+
 # Hi!
 
 This is it. Pretty much a history of Farbrausch tools 2001-2011. We've been

@@ -124,8 +124,12 @@ sObject * __stdcall FXChain_BeginViewport(GenFXChain *chn,sInt3 pos,sInt3 parm2,
 	chain->Param[0] = mode>>16;
 	chain->Zoom.x = zoom;
 	chain->Color = color;
-	for(i=0;i<6;i++)
+	// kampvogn.dk: was six ints read from &pos.x, running on into parm2 on the x86 stack
+	for(i=0;i<3;i++)
+	{
 		(&chain->CamPos.x)[i] = (&pos.x)[i]/65536.0f;
+		(&chain->CamPos.x)[i+3] = (&parm2.x)[i]/65536.0f;
+	}
 	FXMaster->Ref(chain->Viewport,sAbs(ocount>>16)-1);
 
   return chain;
@@ -219,8 +223,14 @@ sObject * __stdcall FXChain_Layer2D(GenFXChain *chn,GenMaterial *mtrl,sInt4 colo
 	chain->Rotate = rotate;
 	chain->Center = center;
 
-	for(i=0;i<10;i++)
+	// kampvogn.dk: was ten ints from &screen.x, running on into uv, z and clear on the x86 stack
+	for(i=0;i<4;i++)
+	{
 		chain->Param[i]=(&screen.x)[i];
+		chain->Param[i+4]=(&uv.x)[i];
+	}
+	chain->Param[8]=z;
+	chain->Param[9]=clear;
 	chain->Viewport = chn->Viewport;
 	FXMaster->Ref(chain->Viewport,sAbs(ocount>>16)-1);
 
@@ -491,8 +501,14 @@ sObject * __stdcall FXChain_Blend4x(GenFXChain *chn,sF324 r0,sF324 r1,sF324 r2,s
 	SCRIPTVERIFY(chain->Viewport != -1);
 	FXMaster->Ref(chn->Viewport,-1);
 
-	for(i=0;i<16;i++)
+	// kampvogn.dk: was sixteen floats from &r0.x, running on into r1..r3 on the x86 stack
+	for(i=0;i<4;i++)
+	{
 		chain->ParamF[i]=(&r0.x)[i];
+		chain->ParamF[i+4]=(&r1.x)[i];
+		chain->ParamF[i+8]=(&r2.x)[i];
+		chain->ParamF[i+12]=(&r3.x)[i];
+	}
 
 	chain->Param[0]=cmode>>16;
 	chain->Param[1]=sRange(amplify>>10,255,0)*0x01010101;

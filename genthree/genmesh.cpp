@@ -1,9 +1,22 @@
 // This file is distributed under a BSD license. See LICENSE.txt for details.
+#include <stdarg.h>
 #include "cslrt.hpp"
 #include "genmesh.hpp"
 #include "genmaterial.hpp"
 #include "genbitmap.hpp"
 #include "_util.hpp"
+
+// kampvogn.dk: the operators passed &s.x to InitSRT, reading s, r and t as
+// nine floats in a row as they lie on the x86 stack. Reading past a parameter
+// is undefined in C++, and clang's optimizer does not keep them together.
+struct sSRTPack
+{
+  sF32 v[9];
+  sSRTPack(const sF323 &s,const sF323 &r,const sF323 &t)
+  {
+    v[0]=s.x; v[1]=s.y; v[2]=s.z; v[3]=r.x; v[4]=r.y; v[5]=r.z; v[6]=t.x; v[7]=t.y; v[8]=t.z;
+  }
+};
 
 /****************************************************************************/
 
@@ -645,12 +658,26 @@ void GenMesh::RecAddScale(sInt dest,sU32 count,sInt mode,...)
 
 	sVERIFY(count < 64);
 
+#ifdef __EMSCRIPTEN__
+	// kampvogn.dk: the x86 version below walks the stack (int, double, int, double...);
+	// WebAssembly passes variadic arguments in a buffer of its own
+	va_list ap;
+	va_start(ap,mode);
+	for(i=0;i<count;i++)
+	{
+		values[i*2+0] = va_arg(ap,sInt);
+		ftemp = (sF32) va_arg(ap,sF64);
+		values[i*2+1] = *((sU32*) &ftemp);
+	}
+	va_end(ap);
+#else
 	for(i=0;i<count;i++)
 	{
 		values[i*2+0] = sVARARG(&mode,i*3);
 		ftemp = sVARARGF(&mode,i*3+1);
 		values[i*2+1] = *((sU32*) &ftemp);
 	}
+#endif
 
 	RecAddScaleArray(dest,count,mode,values);
 }
@@ -829,6 +856,7 @@ sU32 *GenMesh::RecNormalInner(sU32 *code,sMatrix *matrices)
   sn = VertMap[sGMI_NORMAL];
   mask = *code++;
 
+#ifndef __EMSCRIPTEN__ /* kampvogn.dk: wasm floats always behave like this (round down is sFtol's job) */
 	__asm
 	{
 		fstcw		[oldcw];
@@ -837,6 +865,7 @@ sU32 *GenMesh::RecNormalInner(sU32 *code,sMatrix *matrices)
 		fldcw		[esp];
 		pop			eax;
 	}
+#endif
 
   // calc the normals
   while(count--)
@@ -871,7 +900,9 @@ sU32 *GenMesh::RecNormalInner(sU32 *code,sMatrix *matrices)
     }
   }
 
+#ifndef __EMSCRIPTEN__
   __asm fldcw [oldcw];
+#endif
 
 	return code;
 }
@@ -985,6 +1016,7 @@ sU32 *GenMesh::RecPerlinInner(sU32 *code,sMatrix *matrices)
 	mat = *code++;
   amp = matrices[mat+1].i;
 	// single precision, round towards neg. inf.
+#ifndef __EMSCRIPTEN__
 	__asm
 	{
 		fstcw		[oldcw];
@@ -992,6 +1024,7 @@ sU32 *GenMesh::RecPerlinInner(sU32 *code,sMatrix *matrices)
 		fldcw		[esp];
 		pop			eax;
 	}
+#endif
 
 	while(count--)
 	{
@@ -1033,7 +1066,9 @@ sU32 *GenMesh::RecPerlinInner(sU32 *code,sMatrix *matrices)
 		vert->AddMul3(t0,amp);
 	}
 
+#ifndef __EMSCRIPTEN__
 	__asm fldcw [oldcw];
+#endif
 //#endif
 
 	return code;
@@ -4274,8 +4309,10 @@ sObject * __stdcall Mesh_Cube(GenMesh *mesh,sInt tx,sInt ty,sInt tz,sInt crease)
   sMatrix mat;
   sVector vc,vs;
 
-	for(i=0;i<3;i++)
-		tess[i]=(&tx)[i]>>16;
+	// kampvogn.dk: was (&tx)[i], tx, ty and tz side by side on the x86 stack
+	tess[0]=tx>>16;
+	tess[1]=ty>>16;
+	tess[2]=tz>>16;
 
 	SCRIPTVERIFY(mesh);
 	SCRIPTVERIFY(mesh->Vert.Count==0);
@@ -4437,7 +4474,7 @@ sObject * __stdcall Mesh_Transform(GenMesh *mesh,sInt mask,sF323 s,sF323 r,sF323
 	SCRIPTVERIFY(mesh);
 
   mesh->MarkAnimLabel(GMA_TRANSFORM);
-	mat.InitSRT(&s.x);
+	mat.InitSRT(sSRTPack(s,r,t).v);
 	if(mask)
 		mesh->Mask2Sel(mask<<16);
   else
@@ -4558,7 +4595,7 @@ sObject * __stdcall Mesh_TransformEx(GenMesh *mesh,sInt mask,sInt sj,sInt dj,sF3
   mesh->MarkAnimLabel(GMA_TRANSFORM);
 	SCRIPTVERIFY(mesh);
 
-	mat.InitSRT(&s.x);
+	mat.InitSRT(sSRTPack(s,r,t).v);
 	if(mask)
 		mesh->Mask2Sel(mask<<16);
   else
@@ -4836,7 +4873,8 @@ sObject * __stdcall Mesh_Cut(GenMesh *mesh,sF322 dir,sF32 offs,sInt mode)
 
 	SCRIPTVERIFY(mesh);
 	
-  mat.InitEulerPI2(&dir.x);
+  // kampvogn.dk: was &dir.x, whose third float on the x86 stack is offs
+  { sF32 a[3] = { dir.x, dir.y, offs }; mat.InitEulerPI2(a); }
 	plane.Init4(mat.i.x,mat.j.x,mat.k.x,offs);
   mesh->All2Sel();
 	mesh->Cut(plane,mode>>16);
@@ -4898,7 +4936,7 @@ sObject * __stdcall Mesh_Perlin(GenMesh *mesh,sInt mask,sF323 s,sF323 r,sF323 t,
 	sMatrix mat;
 
 	SCRIPTVERIFY(mesh);
-  mat.InitSRT(&s.x);
+  mat.InitSRT(sSRTPack(s,r,t).v);
   mesh->MarkAnimLabel(GMA_PERLIN);
 	if(mask)
 		mesh->Mask2Sel(mask<<16);
@@ -5043,7 +5081,7 @@ sObject * __stdcall Mesh_Multiply(GenMesh *mesh,sF323 s,sF323 r,sF323 t,sInt cou
 
 	count>>=16;
 
-	step.InitSRT(&s.x);
+	step.InitSRT(sSRTPack(s,r,t).v);
 	out = new GenMesh;
 	out->Init(mesh->VertMask,mesh->VertCount*count);
 	xform = step;

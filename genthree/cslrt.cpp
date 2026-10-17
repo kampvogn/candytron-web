@@ -198,6 +198,13 @@ sBool ScriptRuntime::Execute(sInt word)
 
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: code is a ScriptThunk (scriptthunk.hpp) that reads the dwords itself */
+static sInt CallCode(sInt code,sInt *para,sInt count)
+{
+  return ((sInt (*)(const sInt *))code)(para);
+}
+#else
 static sInt CallCode(sInt code,sInt *para,sInt count)
 {
   sInt result;
@@ -219,6 +226,7 @@ static sInt CallCode(sInt code,sInt *para,sInt count)
 
   return result;
 }
+#endif
 
 /****************************************************************************/
 

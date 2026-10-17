@@ -7,6 +7,7 @@
 #include "genfx.hpp"
 #include "cslce.hpp"
 #include "cslrt.hpp"
+#include "scriptthunk.hpp" // kampvogn.dk
 
 void GenPlayerSoundHandler(sS16 *steriobuffer,sInt samples,void *user); 
 GenPlayer *CurrentGenPlayer;
@@ -21,142 +22,142 @@ GenPlayer *CurrentGenPlayer;
 
 const struct ScriptFunction  ScriptFunctions[] = 
 {
-	0x0001,0x020104,Mesh_Cube,
-  0x0003,0x020109,Mesh_SelectCube,
-  0x0004,0x020103,Mesh_Subdivide,
-  0x0006,0x02010a,Mesh_Transform,
-  0x000a,0x020002,Mesh_NewMesh,
-  0x000b,0x020202,Mesh_Material,
-	0x0010,0x020103,Mesh_CalcNormals,
-	0x0013,0x020103,Mesh_Triangulate,
-	0x0018,0x02010d,Mesh_Perlin,
-	0x001b,0x020006,Mesh_Babe,
-	0x001c,0x020100,Mesh_BeginRecord,
-	0x001d,0x020102,Mesh_AnimLabel,
-	0x001f,0x020104,Mesh_SelectRandom,
-  0x0022,0x02010b,Mesh_ExtrudeWK,
+	0x0001,0x020104,SCRIPT_FN(Mesh_Cube),
+  0x0003,0x020109,SCRIPT_FN(Mesh_SelectCube),
+  0x0004,0x020103,SCRIPT_FN(Mesh_Subdivide),
+  0x0006,0x02010a,SCRIPT_FN(Mesh_Transform),
+  0x000a,0x020002,SCRIPT_FN(Mesh_NewMesh),
+  0x000b,0x020202,SCRIPT_FN(Mesh_Material),
+	0x0010,0x020103,SCRIPT_FN(Mesh_CalcNormals),
+	0x0013,0x020103,SCRIPT_FN(Mesh_Triangulate),
+	0x0018,0x02010d,SCRIPT_FN(Mesh_Perlin),
+	0x001b,0x020006,SCRIPT_FN(Mesh_Babe),
+	0x001c,0x020100,SCRIPT_FN(Mesh_BeginRecord),
+	0x001d,0x020102,SCRIPT_FN(Mesh_AnimLabel),
+	0x001f,0x020104,SCRIPT_FN(Mesh_SelectRandom),
+  0x0022,0x02010b,SCRIPT_FN(Mesh_ExtrudeWK),
 #if !sINTRO
-  0x000d,0x02010c,Mesh_TransformEx, // raus
-  0x000e,0x020103,Mesh_Crease, // raus
-  0x0021,0x020103,Mesh_SelectAngle, // raus
-	0x0014,0x020104,Mesh_Cut,
-	0x0019,0x020200,Mesh_Add,
-	0x001a,0x020101,Mesh_DeleteFaces,
-	0x0020,0x02010a,Mesh_Multiply,
-  0x0005,0x020103,Mesh_Extrude,
-	0x0015,0x020102,Mesh_ExtrudeNormal,
-	0x0017,0x020105,Mesh_Bevel,
+  0x000d,0x02010c,SCRIPT_FN(Mesh_TransformEx), // raus
+  0x000e,0x020103,SCRIPT_FN(Mesh_Crease), // raus
+  0x0021,0x020103,SCRIPT_FN(Mesh_SelectAngle), // raus
+	0x0014,0x020104,SCRIPT_FN(Mesh_Cut),
+	0x0019,0x020200,SCRIPT_FN(Mesh_Add),
+	0x001a,0x020101,SCRIPT_FN(Mesh_DeleteFaces),
+	0x0020,0x02010a,SCRIPT_FN(Mesh_Multiply),
+  0x0005,0x020103,SCRIPT_FN(Mesh_Extrude),
+	0x0015,0x020102,SCRIPT_FN(Mesh_ExtrudeNormal),
+	0x0017,0x020105,SCRIPT_FN(Mesh_Bevel),
 #endif
 #if !sINTRO_X
-  0x0002,0x020102,Mesh_SelectAll,
-  0x0009,0x020102,Mesh_Cylinder,
-  0x000f,0x020103,Mesh_UnCrease,
-	0x0011,0x020105,Mesh_Torus,
-	0x0012,0x020102,Mesh_Sphere,
-	0x0016,0x020202,Mesh_Displace,
+  0x0002,0x020102,SCRIPT_FN(Mesh_SelectAll),
+  0x0009,0x020102,SCRIPT_FN(Mesh_Cylinder),
+  0x000f,0x020103,SCRIPT_FN(Mesh_UnCrease),
+	0x0011,0x020105,SCRIPT_FN(Mesh_Torus),
+	0x0012,0x020102,SCRIPT_FN(Mesh_Sphere),
+	0x0016,0x020202,SCRIPT_FN(Mesh_Displace),
 #endif
 
-  0x0041,0x020003,Spline_New,
-  0x0042,0x020100,Spline_Sort,
-  0x0043,0x020102,Spline_AddKey1,
-  0x0044,0x020103,Spline_AddKey2,
-  0x0045,0x020104,Spline_AddKey3,
-  0x0046,0x020105,Spline_AddKey4,
-  0x0047,0x000101,Spline_Calc1, 
-  0x0048,0x000101,Spline_Calc2,
-  0x0049,0x000101,Spline_Calc3,
-  0x004a,0x000101,Spline_Calc4,
+  0x0041,0x020003,SCRIPT_FN(Spline_New),
+  0x0042,0x020100,SCRIPT_FN(Spline_Sort),
+  0x0043,0x020102,SCRIPT_FN(Spline_AddKey1),
+  0x0044,0x020103,SCRIPT_FN(Spline_AddKey2),
+  0x0045,0x020104,SCRIPT_FN(Spline_AddKey3),
+  0x0046,0x020105,SCRIPT_FN(Spline_AddKey4),
+  0x0047,0x000101,SCRIPT_FN(Spline_Calc1), 
+  0x0048,0x000101,SCRIPT_FN(Spline_Calc2),
+  0x0049,0x000101,SCRIPT_FN(Spline_Calc3),
+  0x004a,0x000101,SCRIPT_FN(Spline_Calc4),
 
-  0x0055,0x020100,Sys_Copy,
-  0x0058,0x020101,Sys_FindLabel,
-	0x0059,0x010002,Sys_Pow,
+  0x0055,0x020100,SCRIPT_FN(Sys_Copy),
+  0x0058,0x020101,SCRIPT_FN(Sys_FindLabel),
+	0x0059,0x010002,SCRIPT_FN(Sys_Pow),
 #if !sINTRO
-  0x0051,0x000001,Sys_PrintDez,
-  0x0052,0x000001,Sys_PrintHex,
-  0x0053,0x000001,Sys_Print,
-  0x0056,0x000102,Sys_LoadSound,
-  0x0057,0x000101,Sys_PlaySound, 
+  0x0051,0x000001,SCRIPT_FN(Sys_PrintDez),
+  0x0052,0x000001,SCRIPT_FN(Sys_PrintHex),
+  0x0053,0x000001,SCRIPT_FN(Sys_Print),
+  0x0056,0x000102,SCRIPT_FN(Sys_LoadSound),
+  0x0057,0x000101,SCRIPT_FN(Sys_PlaySound), 
 #endif 
 #if !sINTRO
-  0x0071,0x02000a,Matrix_Generate,
-  0x0072,0x02010a,Matrix_Modify,
-  0x0072,0x020101,Matrix_Label,
+  0x0071,0x02000a,SCRIPT_FN(Matrix_Generate),
+  0x0072,0x02010a,SCRIPT_FN(Matrix_Modify),
+  0x0072,0x020101,SCRIPT_FN(Matrix_Label),
 #endif
 
-  0x0082,0x020100,Bitmap_MakeTexture,
-  0x0084,0x020004,Bitmap_Flat,
-  0x0085,0x020201,Bitmap_Merge,
-  0x0086,0x020105,Bitmap_Color,
-  0x0087,0x02010c,Bitmap_GlowRect,
-  0x0091,0x020109,Bitmap_Text,
-  0x0092,0x02000f,Bitmap_Perlin,
+  0x0082,0x020100,SCRIPT_FN(Bitmap_MakeTexture),
+  0x0084,0x020004,SCRIPT_FN(Bitmap_Flat),
+  0x0085,0x020201,SCRIPT_FN(Bitmap_Merge),
+  0x0086,0x020105,SCRIPT_FN(Bitmap_Color),
+  0x0087,0x02010c,SCRIPT_FN(Bitmap_GlowRect),
+  0x0091,0x020109,SCRIPT_FN(Bitmap_Text),
+  0x0092,0x02000f,SCRIPT_FN(Bitmap_Perlin),
 #if !sINTRO
-  0x0083,0x000101,Bitmap_SetTexture,
-  0x0088,0x02010a,Bitmap_Dots,
-  0x0094,0x020102,Bitmap_Wavelet,
-  0x0089,0x020104,Bitmap_Blur, // raus
-  0x008b,0x020104,Bitmap_HSCB, // hue = 0
-  0x008d,0x020202,Bitmap_Distort, // raus
-  0x0093,0x020011,Bitmap_Cell, // raus
+  0x0083,0x000101,SCRIPT_FN(Bitmap_SetTexture),
+  0x0088,0x02010a,SCRIPT_FN(Bitmap_Dots),
+  0x0094,0x020102,SCRIPT_FN(Bitmap_Wavelet),
+  0x0089,0x020104,SCRIPT_FN(Bitmap_Blur), // raus
+  0x008b,0x020104,SCRIPT_FN(Bitmap_HSCB), // hue = 0
+  0x008d,0x020202,SCRIPT_FN(Bitmap_Distort), // raus
+  0x0093,0x020011,SCRIPT_FN(Bitmap_Cell), // raus
 #endif
 #if !sINTRO_X
-  0x0081,0x000002,Bitmap_SetSize,
-  0x008a,0x020300,Bitmap_Mask,
-  0x008c,0x020106,Bitmap_Rotate,
-  0x008e,0x020102,Bitmap_Normals,
-  0x008f,0x020111,Bitmap_Light,
-  0x0090,0x020217,Bitmap_Bump,
-	0x0095,0x02000b,Bitmap_Gradient,
+  0x0081,0x000002,SCRIPT_FN(Bitmap_SetSize),
+  0x008a,0x020300,SCRIPT_FN(Bitmap_Mask),
+  0x008c,0x020106,SCRIPT_FN(Bitmap_Rotate),
+  0x008e,0x020102,SCRIPT_FN(Bitmap_Normals),
+  0x008f,0x020111,SCRIPT_FN(Bitmap_Light),
+  0x0090,0x020217,SCRIPT_FN(Bitmap_Bump),
+	0x0095,0x02000b,SCRIPT_FN(Bitmap_Gradient),
 #endif
  
-  0x00c1,0x020109,Scene_Mesh,
-  0x00c2,0x020109,Scene_Trans,
-  0x00c3,0x02010a,Scene_Multiply,
-  0x00c4,0x020200,Scene_Add,
-  0x00c5,0x020100,Scene_Paint,
-  0x00c6,0x020101,Scene_Label,
-  0x00c7,0x02001e,Scene_Light,
+  0x00c1,0x020109,SCRIPT_FN(Scene_Mesh),
+  0x00c2,0x020109,SCRIPT_FN(Scene_Trans),
+  0x00c3,0x02010a,SCRIPT_FN(Scene_Multiply),
+  0x00c4,0x020200,SCRIPT_FN(Scene_Add),
+  0x00c5,0x020100,SCRIPT_FN(Scene_Paint),
+  0x00c6,0x020101,SCRIPT_FN(Scene_Label),
+  0x00c7,0x02001e,SCRIPT_FN(Scene_Light),
 
-  0x00e0,0x020000,Material_NewMaterial,
-  0x00e1,0x020108,MatPass_MatBase,
-  0x00e2,0x020203,MatPass_MatTexture,
-  0x00e3,0x020105,MatPass_MatFinalizer,
-  0x00e4,0x020102,MatPass_MatLabel,
-  0x00e5,0x02010c,MatPass_MatTexTrans,
-  0x00e9,0x020118,MatPass_MatLight,
+  0x00e0,0x020000,SCRIPT_FN(Material_NewMaterial),
+  0x00e1,0x020108,SCRIPT_FN(MatPass_MatBase),
+  0x00e2,0x020203,SCRIPT_FN(MatPass_MatTexture),
+  0x00e3,0x020105,SCRIPT_FN(MatPass_MatFinalizer),
+  0x00e4,0x020102,SCRIPT_FN(MatPass_MatLabel),
+  0x00e5,0x02010c,SCRIPT_FN(MatPass_MatTexTrans),
+  0x00e9,0x020118,SCRIPT_FN(MatPass_MatLight),
 
 #if !sINTRO_X
-  0x00e6,0x020105,MatPass_MatDX7,
-  0x00e7,0x020106,MatPass_MatBlend,
-  0x00e8,0x020106,MatPass_MatStencil,
+  0x00e6,0x020105,SCRIPT_FN(MatPass_MatDX7),
+  0x00e7,0x020106,SCRIPT_FN(MatPass_MatBlend),
+  0x00e8,0x020106,SCRIPT_FN(MatPass_MatStencil),
 #endif
 
-  0x00f1,0x020108,MatPass_MatBase,  // raus
-  0x00f2,0x020203,MatPass_MatTexture,  // raus
-  0x00f3,0x020105,MatPass_MatFinalizer,  // raus
-  0x00f4,0x020102,MatPass_MatLabel,  // raus
-  0x00f5,0x02010c,MatPass_MatTexTrans,  // raus
+  0x00f1,0x020108,SCRIPT_FN(MatPass_MatBase),  // raus
+  0x00f2,0x020203,SCRIPT_FN(MatPass_MatTexture),  // raus
+  0x00f3,0x020105,SCRIPT_FN(MatPass_MatFinalizer),  // raus
+  0x00f4,0x020102,SCRIPT_FN(MatPass_MatLabel),  // raus
+  0x00f5,0x02010c,SCRIPT_FN(MatPass_MatTexTrans),  // raus
 
-	0x0100,0x020006,FXChain_New,
-	0x0101,0x02010a,FXChain_BeginViewport,
-	0x0102,0x000100,FXChain_Render,
-	0x0103,0x020214,FXChain_Layer2D,
-	0x0104,0x020209,FXChain_Merge,
-	0x0105,0x02010d,FXChain_Color,
-	0x0106,0x020101,FXChain_EndViewport,
-	0x0107,0x020201,FXChain_PaintScene,
-	0x0109,0x020114,FXChain_Blend4x,
-	0x010a,0x02020e,FXChain_Viewport,
-	0x010b,0x000000,FXChain_ResetAlloc,
-	0x010c,0x020102,FXChain_Label,
+	0x0100,0x020006,SCRIPT_FN(FXChain_New),
+	0x0101,0x02010a,SCRIPT_FN(FXChain_BeginViewport),
+	0x0102,0x000100,SCRIPT_FN(FXChain_Render),
+	0x0103,0x020214,SCRIPT_FN(FXChain_Layer2D),
+	0x0104,0x020209,SCRIPT_FN(FXChain_Merge),
+	0x0105,0x02010d,SCRIPT_FN(FXChain_Color),
+	0x0106,0x020101,SCRIPT_FN(FXChain_EndViewport),
+	0x0107,0x020201,SCRIPT_FN(FXChain_PaintScene),
+	0x0109,0x020114,SCRIPT_FN(FXChain_Blend4x),
+	0x010a,0x02020e,SCRIPT_FN(FXChain_Viewport),
+	0x010b,0x000000,SCRIPT_FN(FXChain_ResetAlloc),
+	0x010c,0x020102,SCRIPT_FN(FXChain_Label),
 
 #if !sINTRO_X
-	0x00c9,0x020100,Scene_PartScene,
-  0x0120,0x020107,Part_New,
-  0x0121,0x02010e,Part_Emitter,
-  0x0122,0x020103,Part_Rotate,
-  0x0123,0x020114,Part_Life,
-  0x0124,0x020202,Part_Spline,
+	0x00c9,0x020100,SCRIPT_FN(Scene_PartScene),
+  0x0120,0x020107,SCRIPT_FN(Part_New),
+  0x0121,0x02010e,SCRIPT_FN(Part_Emitter),
+  0x0122,0x020103,SCRIPT_FN(Part_Rotate),
+  0x0123,0x020114,SCRIPT_FN(Part_Life),
+  0x0124,0x020202,SCRIPT_FN(Part_Spline),
 #endif
   0,0,0
 };

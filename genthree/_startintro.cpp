@@ -13,6 +13,11 @@
 
 #include <windows.h>
 #include <d3d9.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <SDL2/SDL.h>
+#include <math.h>
+#endif
 #include <dinput.h>
 #include <olectl.h>
 #include <dsound.h>
@@ -57,9 +62,11 @@ HMODULE d3dlib;
 HMODULE dslib;
 
 typedef IDirect3D9* (WINAPI * Direct3DCreate9T)(UINT SDKVersion);
+#ifndef __EMSCRIPTEN__
 typedef HRESULT (WINAPI * DirectSoundCreate8T)(LPCGUID lpcGuidDevice,LPDIRECTSOUND8 * ppDS8,LPUNKNOWN pUnkOuter);
 
 static IDirectSoundBuffer8 *DXSBuffer;
+#endif
 static sInt Initialized;
 
 sSystem_ *sSystem;
@@ -86,6 +93,7 @@ static sU32 MouseButtonsSave;
 /****************************************************************************/
 /****************************************************************************/
 
+#ifndef __EMSCRIPTEN__ // kampvogn.dk: the web build uses libc's allocator
 #if !_DEBUG
 void * __cdecl malloc(unsigned int size)
 {
@@ -129,6 +137,7 @@ int __cdecl _purecall()
 extern "C" int _fltused;
 int _fltused;
 #endif
+#endif // __EMSCRIPTEN__
 
 /****************************************************************************/
 /****************************************************************************/
@@ -138,6 +147,53 @@ int _fltused;
 /****************************************************************************/
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: the browser version of the startup. No window: the canvas is
+   made by the page; the main loop gives the browser a turn after every frame
+   (Asyncify), and Escape stops the demo. */
+static sInt WebQuit;
+
+/* wait for the browser's next frame (vsync), so the page can composite it */
+EM_ASYNC_JS(void, web_wait_frame, (), {
+  await new Promise((r) => requestAnimationFrame(() => r()));
+});
+
+int main()
+{
+  sSystem = new sSystem_;
+  sSetMem(sSystem,0,sizeof(sSystem_));
+  sSystem->Run();
+  delete sSystem;
+  return 0;
+}
+
+static void WebLoop()
+{
+  const Uint8 *keys;
+  SDL_PumpEvents();
+  keys = SDL_GetKeyboardState(0);
+  if(keys && keys[SDL_SCANCODE_ESCAPE])
+    WebQuit = 1;
+  sSystem->Render();
+}
+
+void sSystem_::Run()
+{
+  sBroker = new sBroker_;
+  InitScreens();
+  sAppHandler(sAPPCODE_INIT,0);    // the precalc; Progress() gives the browser turns
+  InitDS();
+  Initialized = 1;
+  while(!WebQuit)
+  {
+    WebLoop();
+    web_wait_frame();
+  }
+  ExitDS();
+  sAppHandler(sAPPCODE_EXIT,0);
+  EM_ASM({ if (Module.onDemoEnd) Module.onDemoEnd(); });
+}
+#else
 static LRESULT WINAPI MainWndProc(HWND win,UINT msg,WPARAM wparam,LPARAM lparam)
 {
   static sInt DXKillCursor;
@@ -284,7 +340,7 @@ void sSystem_::Run()
 
 #if !sINTRO
   _control87(_PC_24|_RC_DOWN,MCW_PC|MCW_RC);
-#else
+#elif !defined(__EMSCRIPTEN__)
 	__asm
 	{
 		push		0143fh;
@@ -357,6 +413,7 @@ void sSystem_::Run()
 #endif
 #endif
 }
+#endif // __EMSCRIPTEN__
 
 /****************************************************************************/
 /****************************************************************************/
@@ -372,6 +429,17 @@ void sSystem_::Run()
 /***                                                                      ***/
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+void sSystem_::Log(sChar *s) { printf("%s", s); }
+sNORETURN void sSystem_::Abort(sChar *msg)
+{
+  printf("abort: %s\n", msg ? msg : "");
+  EM_ASM({ if (Module.onDemoEnd) Module.onDemoEnd('abort'); });
+  emscripten_force_exit(1);
+  for(;;);
+}
+void sSystem_::Exit() { WebQuit = 1; }
+#else
 void sSystem_::Log(sChar *s)
 {
 #if !sINTRO || !sRELEASE
@@ -406,6 +474,7 @@ void sSystem_::Exit()
 {
   PostQuitMessage(0);
 }
+#endif // __EMSCRIPTEN__
 
 #if !sRELEASE
 
@@ -424,7 +493,7 @@ sU32 sSystem_::GetTime()
 /****************************************************************************/
 /****************************************************************************/
 
-#if sUSE_DIRECTSOUND
+#if sUSE_DIRECTSOUND && !defined(__EMSCRIPTEN__)
 
 static IDirectSound8  *DXS;
 //static IDirectSoundBuffer8 *DXSBuffer;
@@ -900,6 +969,65 @@ unsigned long __stdcall ThreadCode(void *)
 
 #endif
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: sound in the browser. SDL2 calls back for more samples; the
+   callback renders them with the same IntroRenderHandler (V2, 44.1 kHz s16
+   stereo) the DirectSound ring buffer was filled with. The demo clock is the
+   audio context's clock since the first callback, minus one buffer of latency
+   (DSTime() estimated the play position from timeGetTime() the same way). */
+#define WEBSAMPLES 2048
+void IntroRenderHandler(sS16 *stream,sInt samples);
+static SDL_AudioDeviceID WebAudioDev;
+static double WebAudioStart = -1;
+static sInt DXSCurrentSample;
+
+EM_JS(double, web_audio_time, (), {
+  const c = (typeof SDL2 !== 'undefined' && SDL2.audioContext) ? SDL2.audioContext : null;
+  return c ? c.currentTime : performance.now() / 1000;
+});
+
+static void WebAudioCallback(void *,Uint8 *stream,int len)
+{
+  if(WebAudioStart < 0)
+    WebAudioStart = web_audio_time();
+  IntroRenderHandler((sS16 *)stream,len/4);
+}
+
+void sSystem_::InitDS()
+{
+  SDL_AudioSpec want,have;
+  SDL_InitSubSystem(SDL_INIT_AUDIO);
+  sSetMem(&want,0,sizeof(want));
+  want.freq = 44100;
+  want.format = AUDIO_S16LSB;
+  want.channels = 2;
+  want.samples = WEBSAMPLES;
+  want.callback = WebAudioCallback;
+  WebAudioDev = SDL_OpenAudioDevice(0,0,&want,&have,0);
+  if(WebAudioDev)
+    SDL_PauseAudioDevice(WebAudioDev,0);
+}
+
+void sSystem_::ExitDS()
+{
+  if(WebAudioDev)
+    SDL_CloseAudioDevice(WebAudioDev);
+  WebAudioDev = 0;
+}
+
+void sSystem_::FillDS()
+{
+}
+
+void DSTime()
+{
+  if(WebAudioStart < 0)
+    DXSCurrentSample = 0;
+  else
+    DXSCurrentSample = sMax<sInt>(0,(sInt)((web_audio_time()-WebAudioStart)*44100.0) - WEBSAMPLES);
+}
+#endif
+
 /****************************************************************************/
 /****************************************************************************/
 
@@ -914,6 +1042,40 @@ sInt sSystem_::GetCurrentSample()
 /***                                                                      ***/
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: GDI's ExtTextOut in a 2D canvas: white antialiased text on
+   black, top-left at (x,y); lfHeight = -height is the character height, a
+   nonzero lfWidth the average character width. The pixels come back as GDI
+   leaves a 32-bit DIB: 0x00RRGGBB. Arial is drawn with a metric-compatible
+   face (the page loads Arimo). */
+EM_JS(void, web_render_font, (unsigned int *dest, int bmx, int bmy, const char *face, const char *text, int x, int y, int width, int height), {
+  const c = document.createElement('canvas');
+  c.width = bmx; c.height = bmy;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000'; g.fillRect(0, 0, bmx, bmy);
+  const name = UTF8ToString(face);
+  g.font = height + 'px ' + (name.toLowerCase() === 'arial' ? 'Arimo, Arial, "Liberation Sans", sans-serif' : name);
+  g.textBaseline = 'top';
+  g.fillStyle = '#fff';
+  let sx = 1;
+  if (width != 0) { // GDI uses the absolute value of lfWidth
+    const avg = g.measureText('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ').width / 52;
+    if (avg > 0) sx = Math.abs(width) / avg;
+  }
+  g.setTransform(sx, 0, 0, 1, x, y);
+  g.fillText(UTF8ToString(text), 0, 0);
+  const px = g.getImageData(0, 0, bmx, bmy).data;
+  const out = HEAPU32.subarray(dest >> 2, (dest >> 2) + bmx * bmy);
+  for (let i = 0; i < bmx * bmy; i++) out[i] = (px[i * 4] << 16) | (px[i * 4 + 1] << 8) | px[i * 4 + 2];
+});
+
+sU32 *sSystem_::RenderFont(sInt bmx,sInt bmy,sChar *fontname,sChar *text,sInt x,sInt y,sInt width,sInt height)
+{
+  sU32 *data = new sU32[bmx*bmy];
+  web_render_font((unsigned int *)data,bmx,bmy,fontname,text,x,y,width,height);
+  return data;
+}
+#else
 sU32 *sSystem_::RenderFont(sInt bmx,sInt bmy,sChar *fontname,sChar *text,sInt x,sInt y,sInt width,sInt height)
 {
   HDC GDIScreenDC;
@@ -973,6 +1135,7 @@ sU32 *sSystem_::RenderFont(sInt bmx,sInt bmy,sChar *fontname,sChar *text,sInt x,
 
   return data;
 }
+#endif
 
 /****************************************************************************/
 /***                                                                      ***/
@@ -1198,8 +1361,12 @@ void sSystem_::InitScreens()
   Screen.YSize = r.bottom-r.top;
 #endif
 
+#ifdef __EMSCRIPTEN__
+  DXD = Direct3DCreate9(D3D_SDK_VERSION);      // d3d9-webgl
+#else
   Direct3DCreate9P = (Direct3DCreate9T) GetProcAddress(d3dlib,"Direct3DCreate9");
   DXD = (*Direct3DCreate9P)(D3D_SDK_VERSION);
+#endif
   sVERIFY(DXD);
   create = D3DCREATE_HARDWARE_VERTEXPROCESSING;
   do
@@ -1242,7 +1409,9 @@ void sSystem_::InitScreens()
   StdTexTransMat.l.x = 0.5f;
   StdTexTransMat.l.y = 0.5f;
   StdTexTransMat.l.z = 0.5f;*/
+#ifndef __EMSCRIPTEN__
   ShowCursor(0);
+#endif
   NextTexture = 0;
 }
 
@@ -1283,6 +1452,7 @@ void sSystem_::Render()
 
   sAppHandler(sAPPCODE_PAINT,0);
 
+#ifndef __EMSCRIPTEN__ // kampvogn.dk: a hack to keep the GPU from queueing frames; WebGL needs none
   {
     static sInt dblock;
     D3DLOCKED_RECT lr;
@@ -1296,13 +1466,18 @@ void sSystem_::Render()
     dummy = *(sInt *)lr.pBits;
     DXERROR(DXBlockSurface[dblock]->UnlockRect());
 	}
+#endif
 
   hr = DXDev->Present(0,0,0,0);
 
   DSTime();
 
   if(hr==D3DERR_DEVICELOST || sSystem->GetCurrentSample() > ((0x1af*60+15)*44100/132))
+#ifdef __EMSCRIPTEN__
+    WebQuit = 1;
+#else
     PostQuitMessage(0);
+#endif
 
   i = 0;
   do
@@ -1335,7 +1510,11 @@ void sSystem_::Progress(sInt done)
   sInt key;
 
   progress++;
+#ifdef __EMSCRIPTEN__
+  time = (sInt) emscripten_get_now();
+#else
   time = timeGetTime();
+#endif
   if(time > lasttime+250 || done)
   {
     lasttime = time;
@@ -1351,12 +1530,17 @@ void sSystem_::Progress(sInt done)
 
     DXDev->Present(0,0,0,0);
 
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ if (Module.onProgress) Module.onProgress($0 / 1913); }, sMin(maxprog,progress));
+    web_wait_frame();         // show the bar: give the browser a frame
+#else
     key = GetAsyncKeyState(VK_ESCAPE);
     if(key&0x8000)
     {
       DXDev->Release(); 
       ExitProcess(0);
     }
+#endif
   }
 }
 
@@ -2468,7 +2652,9 @@ void sSystem_::EnableLights(sU32 mask)
   }
   while(i<LightCount);
 
+#ifndef __EMSCRIPTEN__
   __asm finit; // driver bugs SUCK SUCK SUCK SUCK SUCK SUCK
+#endif
 }
 
 /****************************************************************************/

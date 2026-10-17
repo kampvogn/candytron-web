@@ -1,4 +1,5 @@
 // This file is distributed under a BSD license. See LICENSE.txt for details.
+#include <stdarg.h>
 #include "_types.hpp"
 #include "_start.hpp"
 
@@ -31,6 +32,13 @@ sU32 sGetRnd()
 {
   sU32 i;
 
+#ifdef __EMSCRIPTEN__
+  /* kampvogn.dk: the asm below in C (two steps of the MS LCG) */
+  sU32 a = sRandomSeed * 0x343fd + 0x269ec3;
+  sU32 b = a * 0x343fd + 0x269ec3;
+  sRandomSeed = b;
+  i = (((sInt)b >> 10) & 0x0000ffff) | ((a << 6) & 0xffff0000);
+#else
   _asm
   {
     mov eax,sRandomSeed
@@ -51,6 +59,7 @@ sU32 sGetRnd()
     or eax,ebx
     mov i,eax
   }
+#endif
 
   return i;
 }
@@ -202,6 +211,11 @@ sF32 sRangeF32(sF32 a,sF32 b,sF32 c)
 
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+/* kampvogn.dk: C for the x87 asm below (0 for a base of 0, like the ftst branch) */
+sF64 sFPow(sF64 a,sF64 b) { return a == 0 ? 0 : pow(a,b); }
+sF64 sFExp(sF64 f) { return exp(f); }
+#else
 sF64 sFPow(sF64 a,sF64 b)
 {
 	__asm
@@ -252,6 +266,7 @@ sF64 sFExp(sF64 f)
 
 	return f;
 }
+#endif
 
 
 #endif
@@ -263,6 +278,9 @@ sF64 sFExp(sF64 f)
 /***                                                                      ***/
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+void sCopyMem4(sU32 *d,sU32 *s,sInt c) { memcpy(d,s,c*4); } /* kampvogn.dk */
+#else
 void sCopyMem4(sU32 *d,sU32 *s,sInt c)
 {
   __asm
@@ -273,6 +291,7 @@ void sCopyMem4(sU32 *d,sU32 *s,sInt c)
     rep movsd
   }
 }
+#endif
 
 #if !sINTRO
 void sCopyMem8(sU64 *d,sU64 *s,sInt c)  
@@ -913,9 +932,42 @@ void sFormatString(sChar *d,sInt left,sChar *s,sChar **fp)
 
 /****************************************************************************/
 
+#ifdef __EMSCRIPTEN__
+// kampvogn.dk: sFormatString reads its arguments the way they lie on the x86
+// stack (sVARARG: one dword each, a double for %f taking two). WebAssembly
+// passes variadic arguments differently, so lay them out like that first.
+// Returns the pointer to hand sFormatString.
+sChar **sVaToStack(sInt *buf,sInt max,const sChar *s,va_list ap)
+{
+  sInt n = 0;
+  while(*s && n<max-2)
+  {
+    if(*s++!='%') continue;
+    while(*s=='-' || *s=='.' || (*s>='0' && *s<='9')) s++;
+    sChar c = *s;
+    if(c==0) break;
+    s++;
+    if(c=='f')
+    {
+      sF64 d = va_arg(ap,sF64);
+      sCopyMem(buf+n,&d,8);
+      n += 2;
+    }
+    else if(c=='d' || c=='x' || c=='X' || c=='i' || c=='c' || c=='s' || c=='h' || c=='H')
+      buf[n++] = va_arg(ap,sInt);
+  }
+  return (sChar **)(buf-1);
+}
+#define sFORMAT_VA(buffer,size,format) \
+  { sInt args_[64]; va_list ap_; va_start(ap_,format); \
+    sFormatString(buffer,size,format,sVaToStack(args_,64,format,ap_)); va_end(ap_); }
+#else
+#define sFORMAT_VA(buffer,size,format) sFormatString(buffer,size,format,&format);
+#endif
+
 void __cdecl sSPrintF(sChar *buffer,sInt size,sChar *format,...)
 {
-  sFormatString(buffer,size,format,&format);
+  sFORMAT_VA(buffer,size,format);
 }
 
 #endif
@@ -1082,7 +1134,7 @@ void __cdecl sFatal(sChar *format,...)
 {
   static sChar buffer[1024];
 
-  sFormatString(buffer,sizeof(buffer),format,&format);
+  sFORMAT_VA(buffer,sizeof(buffer),format);
   sSystem->Log(buffer);
   sSystem->Log("\n");
 #if !sRELEASE
@@ -1108,7 +1160,7 @@ void __cdecl sDPrintF(sChar *format,...)
 {
   sChar buffer[1024];
 
-  sFormatString(buffer,sizeof(buffer),format,&format);
+  sFORMAT_VA(buffer,sizeof(buffer),format);
   sSystem->Log(buffer);
 }  
 #endif

@@ -9,11 +9,11 @@
 #include "../types.h"
 #endif
 
-#define GETPUTMETHODS(T) virtual T get##T##() { T t; read(&t, sizeof(T)); return t; } \
-						 virtual sS32 put##T##(T t) { return write(&t, sizeof(T)); }
+#define GETPUTMETHODS(T) virtual T get##T() { T t; read(&t, sizeof(T)); return t; } \
+						 virtual sS32 put##T(T t) { return write(&t, sizeof(T)); }
 
-#define GETPUTFUNCS(T)	static inline T get##T##(file &f) { return f.get##T##(); }; \
-						static inline sS32 put##T##(file &f, T t) { return f.put##T##(t); };
+#define GETPUTFUNCS(T)	static inline T get##T(file &f) { return f.get##T(); }; \
+						static inline sS32 put##T(file &f, T t) { return f.put##T(t); };
 
 class  file
 {
