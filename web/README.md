@@ -2,7 +2,7 @@
 
 [Farbrausch](https://www.farbrausch.de/)'s 64k intro *candytron* (2nd at
 Breakpoint 2003; this is the final version), built from the original source code to WebAssembly and
-WebGL 2. Watch it at **https://kampvogn.dk/candytron/**.
+WebGL 2. Watch it at **https://kampvogn.dk/demos/candytron/**.
 
 This is a fork of [farbrausch/fr_public](https://github.com/farbrausch/fr_public),
 where the source of the intro's engine (GenThree) and synthesizer (V2) was
