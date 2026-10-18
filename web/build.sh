@@ -31,8 +31,11 @@ em++ -std=gnu++17 -O2 -w -I/w/web/d3d9-webgl -c /w/web/d3d9-webgl/d3d9.cpp -o /w
 em++ -std=gnu++17 -O1 -c /w/$OUT/data.cpp -o /w/$OUT/data.o && echo "ok   data" || fail=1
 [ $fail = 0 ] || exit 1
 cd /w/$OUT
+# Asyncify ignores indirect calls (the waits, web_wait_frame in the main loop
+# and the progress bar, are reached directly): instrumenting all of them, the
+# audio callback included, made iPhones (iOS 26) kill the page after ~10 s of sound.
 em++ -O2 *.o -o candytron.js -sUSE_SDL=2 -sUSE_WEBGL2=1 -sFULL_ES3=1 -sMAX_WEBGL_VERSION=2 \
-  -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 -sSTACK_SIZE=8MB -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=256MB \
+  -sASYNCIFY -sASYNCIFY_IGNORE_INDIRECT -sASYNCIFY_STACK_SIZE=1048576 -sSTACK_SIZE=8MB -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=256MB \
   -sENVIRONMENT=web -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sEXPORTED_RUNTIME_METHODS=callMain $EXTRA_LDFLAGS
 echo "built $OUT/candytron.wasm ($(wc -c < candytron.wasm) bytes)"'
 cp "$WEB/index.html" "$WEB/$OUT/"
